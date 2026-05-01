@@ -1,4 +1,4 @@
-require("dotenv").config({ path: "./.env" });
+require("dotenv").config();
 
 const express = require("express");
 const mongoose = require("mongoose");
@@ -16,8 +16,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-console.log("MONGO:", process.env.MONGO_URI);
-
 // ✅ DB CONNECT
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
@@ -30,17 +28,16 @@ const auth = (req, res, next) => {
   if (!token) return res.status(401).json({ msg: "No token" });
 
   try {
-    const decoded = jwt.verify(token, "secret");
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
     next();
-  } catch (err) {
+  } catch {
     return res.status(401).json({ msg: "Invalid token" });
   }
 };
 
 // ================== ROUTES ==================
 
-// 🔹 TEST
 app.get("/", (req, res) => {
   res.send("API working 🚀");
 });
@@ -52,12 +49,12 @@ app.post("/signup", async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
 
-    if (!name || !email || !password) {
+    if (!email || !password) {
       return res.status(400).json({ msg: "All fields required" });
     }
 
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    const existing = await User.findOne({ email });
+    if (existing) {
       return res.status(400).json({ msg: "User already exists" });
     }
 
@@ -72,9 +69,9 @@ app.post("/signup", async (req, res) => {
 
     await user.save();
 
-    res.json({ msg: "User registered successfully" });
+    res.json({ msg: "Signup successful" });
 
-  } catch (err) {
+  } catch {
     res.status(500).json({ msg: "Server error" });
   }
 });
@@ -84,10 +81,6 @@ app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ msg: "Enter email & password" });
-    }
-
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ msg: "User not found" });
 
@@ -96,37 +89,14 @@ app.post("/login", async (req, res) => {
 
     const token = jwt.sign(
       { userId: user._id, role: user.role },
-      "secret",
+      process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
 
     res.json({ token });
 
-  } catch (err) {
+  } catch {
     res.status(500).json({ msg: "Server error" });
-  }
-});
-app.post("/signup", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    // validation
-    if (!email || !password) {
-      return res.json({ msg: "All fields required" });
-    }
-
-    // check existing user
-    const existing = await User.findOne({ email });
-    if (existing) {
-      return res.json({ msg: "User already exists" });
-    }
-
-    // create user
-    const user = await User.create({ email, password });
-
-    res.json({ msg: "Signup successful", user });
-  } catch (err) {
-    res.json({ msg: "Error" });
   }
 });
 
@@ -138,114 +108,75 @@ app.get("/profile", auth, async (req, res) => {
 
 // ================== PROJECT ==================
 
-// 🔹 CREATE PROJECT
 app.post("/project", auth, async (req, res) => {
-  try {
-    const { name, description, members } = req.body;
+  const { name, description, members } = req.body;
 
-    if (!name) {
-      return res.status(400).json({ msg: "Project name required" });
-    }
-
-    const project = new Project({
-      name,
-      description,
-      members,
-      createdBy: req.user.userId
-    });
-
-    await project.save();
-
-    res.json({ msg: "Project created", project });
-
-  } catch (err) {
-    res.status(500).json({ msg: "Server error" });
-  }
-});
-
-// 🔹 GET PROJECTS
-app.get("/projects", auth, async (req, res) => {
-  const projects = await Project.find({
+  const project = new Project({
+    name,
+    description,
+    members,
     createdBy: req.user.userId
   });
 
+  await project.save();
+  res.json(project);
+});
+
+app.get("/projects", auth, async (req, res) => {
+  const projects = await Project.find({ createdBy: req.user.userId });
   res.json(projects);
 });
 
 // ================== TASK ==================
 
-// 🔹 CREATE TASK (ASSIGN + DEADLINE)
 app.post("/task", auth, async (req, res) => {
-  try {
-    const { title, description, projectId, assignedTo, deadline } = req.body;
+  const { title, description, projectId, assignedTo, deadline } = req.body;
 
-    if (!title || !projectId) {
-      return res.status(400).json({ msg: "Title & projectId required" });
-    }
+  const task = new Task({
+    title,
+    description,
+    projectId,
+    assignedTo,
+    deadline
+  });
 
-    const task = new Task({
-      title,
-      description,
-      projectId,
-      assignedTo,
-      deadline
-    });
-
-    await task.save();
-
-    res.json({ msg: "Task created", task });
-
-  } catch (err) {
-    res.status(500).json({ msg: "Server error" });
-  }
+  await task.save();
+  res.json(task);
 });
 
-// 🔹 GET TASKS BY PROJECT
 app.get("/tasks/:projectId", auth, async (req, res) => {
   const tasks = await Task.find({ projectId: req.params.projectId });
   res.json(tasks);
 });
 
-// 🔹 UPDATE TASK STATUS
 app.put("/task/:id", auth, async (req, res) => {
-  const { status } = req.body;
-
   const task = await Task.findByIdAndUpdate(
     req.params.id,
-    { status },
+    req.body,
     { new: true }
   );
-
   res.json(task);
 });
 
 // ================== DASHBOARD ==================
 
-// 🔹 DASHBOARD (WITH OVERDUE)
 app.get("/dashboard", auth, async (req, res) => {
-  try {
-    const total = await Task.countDocuments();
-    const completed = await Task.countDocuments({ status: "done" });
-    const pending = await Task.countDocuments({ status: "todo" });
+  const total = await Task.countDocuments();
+  const completed = await Task.countDocuments({ status: "done" });
+  const pending = await Task.countDocuments({ status: "todo" });
 
-    const overdue = await Task.countDocuments({
-      deadline: { $lt: new Date() },
-      status: { $ne: "done" }
-    });
+  const overdue = await Task.countDocuments({
+    deadline: { $lt: new Date() },
+    status: { $ne: "done" }
+  });
 
-    res.json({
-      total,
-      completed,
-      pending,
-      overdue
-    });
-
-  } catch (err) {
-    res.status(500).json({ msg: "Server error" });
-  }
+  res.json({ total, completed, pending, overdue });
 });
 
 // ================== SERVER ==================
-app.listen(5001, () => {
-  console.log("Server running on port 5001 🚀");
+
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on ${PORT} 🚀`);
 });
