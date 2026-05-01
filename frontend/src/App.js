@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import "./App.css";
 
+// ✅ API BASE URL
+const API = process.env.REACT_APP_API_URL;
+
 function App() {
   const [loggedIn, setLoggedIn] = useState(
     localStorage.getItem("token") ? true : false
@@ -21,14 +24,13 @@ function Login({ setLoggedIn }) {
   const [password, setPassword] = useState("");
   const [isSignup, setIsSignup] = useState(false);
 
-  // LOGIN
   const login = async () => {
     if (!email || !password) {
       alert("Enter email & password");
       return;
     }
 
-    const res = await fetch("http://localhost:5001/login", {
+    const res = await fetch(`${API}/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -47,14 +49,13 @@ function Login({ setLoggedIn }) {
     setLoggedIn(true);
   };
 
-  // SIGNUP
   const signup = async () => {
     if (!email || !password) {
       alert("Enter email & password");
       return;
     }
 
-    const res = await fetch("http://localhost:5001/signup", {
+    const res = await fetch(`${API}/signup`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -75,10 +76,7 @@ function Login({ setLoggedIn }) {
       <div className="glass">
         <h2>{isSignup ? "Signup" : "Login"}</h2>
 
-        <input
-          placeholder="Email"
-          onChange={(e) => setEmail(e.target.value)}
-        />
+        <input placeholder="Email" onChange={(e) => setEmail(e.target.value)} />
 
         <input
           type="password"
@@ -93,11 +91,7 @@ function Login({ setLoggedIn }) {
         <p style={{ marginTop: 10 }}>
           {isSignup ? "Already have account?" : "New user?"}
           <span
-            style={{
-              color: "#667eea",
-              cursor: "pointer",
-              marginLeft: 5
-            }}
+            style={{ color: "#667eea", cursor: "pointer", marginLeft: 5 }}
             onClick={() => setIsSignup(!isSignup)}
           >
             {isSignup ? "Login" : "Signup"}
@@ -108,7 +102,7 @@ function Login({ setLoggedIn }) {
   );
 }
 
-// 📊 DASHBOARD (same as before)
+// 📊 DASHBOARD
 function Dashboard({ setLoggedIn }) {
   const token = localStorage.getItem("token");
 
@@ -129,7 +123,7 @@ function Dashboard({ setLoggedIn }) {
   });
 
   const loadProjects = async () => {
-    const res = await fetch("http://localhost:5001/projects", {
+    const res = await fetch(`${API}/projects`, {
       headers: { Authorization: token }
     });
     const d = await res.json();
@@ -138,7 +132,7 @@ function Dashboard({ setLoggedIn }) {
   };
 
   const loadDashboard = async () => {
-    const res = await fetch("http://localhost:5001/dashboard", {
+    const res = await fetch(`${API}/dashboard`, {
       headers: { Authorization: token }
     });
     const d = await res.json();
@@ -148,7 +142,7 @@ function Dashboard({ setLoggedIn }) {
   const createTask = async () => {
     if (!taskTitle) return alert("Enter task");
 
-    await fetch("http://localhost:5001/task", {
+    await fetch(`${API}/task`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -170,12 +164,9 @@ function Dashboard({ setLoggedIn }) {
   const loadTasks = async () => {
     if (!selectedProject) return;
 
-    const res = await fetch(
-      `https://team-task-manager-production-e154.up.railway.app/tasks/${selectedProject}`,
-      {
-        headers: { Authorization: token }
-      }
-    );
+    const res = await fetch(`${API}/tasks/${selectedProject}`, {
+      headers: { Authorization: token }
+    });
     const d = await res.json();
     setTasks(d);
   };
@@ -260,9 +251,7 @@ function Dashboard({ setLoggedIn }) {
                   className={`task ${isOverdue ? "overdue-task" : ""}`}
                 >
                   <span>{t.title}</span>
-                  <span
-                    className={t.status === "done" ? "done" : "todo"}
-                  >
+                  <span className={t.status === "done" ? "done" : "todo"}>
                     {t.status}
                   </span>
                 </div>
